@@ -1,9 +1,24 @@
  XML2Mat←{
-     (d e c a t)←↓⍉⍵   ⍝ depth, element, content, attributes, type
-     i←⍳≢⍵             ⍝ indices
-     shape←+/e∊⊂'tr'   ⍝ Shape is (tr td)
-     shape,←⌈/(e∊⊂'tr'){¯2-⌿0⍪(1⌽⍺)⌿+⍀⍵}e∊⊆'td'   ⍝ Count of <td>'s within each <tr>
-                                                  ⍝ TODO: Should cols include <th> ?
-     val←c⊂⍤⌿⍤1⍨(0<≢¨c)(∧⍤1)(¯1∘↑⍪⍨2≠⌿⊢)i∘.≤⍨⍸e∊⊂'td'
-     shape⍴val↑⍨×/shape
+     (d e c a t)←↓⍉⍵           ⍝ depth, element, content, attributes, type
+     i←⍳≢⍵                     ⍝ indices
+     trd←d/⍨<\e∊⊂'tr'          ⍝ depth of highest level <tr> elements
+⍝     thd←d/⍨<\e∊⊂'th'          ⍝         " "            <th>   " "
+⍝ TODO: use depth to make extraction more robust (e.g. table within table)
+     shape←+/(d=trd)∧e∊⊂'tr'   ⍝ shape is (tr td)
+     tr←(d=trd)∧e∊⊂'tr'        ⍝ mask of <tr> elements
+     td←e∊⊆'td' 'th'           ⍝ mask of <td> or <th> elements
+     PartitionedSum←{              ⍝ aplcart fast partitioned sum; Fast {+/¨⍺⊂⍵}
+         sums←+⍀⍵                  ⍝ cumulative sum
+         ends←(0/⍨⊃⍺)⍪1@(≢⍺)⊢1⌽⍺   ⍝ keep the first partition sum if ⍺ begins a partition at ⍺[1]
+         ¯2-⌿ends⌿sums             ⍝ subtract from next partition to get the sum of this partition
+     }
+     rec←tr PartitionedSum td   ⍝ Row Element Count: count of <td> and <th> within each <tr>
+     col←⌈/rec ⋄ shape,←col
+     val←c⊂⍤⌿⍤1⍨(0<≢¨c)(∧⍤1)(¯1∘↑⍪⍨2≠⌿⊢)i∘.≤⍨⍸e∊⊆'td' 'th'   ⍝ Compress out content for each element
+     ex0←((1,⍨⍪)⊢⍤/⍥,⍪,~)rec≠col   ⍝ aplcart expansion vector
+     dif←col-⍨rec/⍨rec≠col         ⍝ difference is negation of number of extra elements to pad val
+     exp←1/⍨dif@(0∘=)ex0\rec       ⍝ expansion vector to pad val to fill shape
+     val\⍨←exp
+     (×/shape)≠≢val:'Extracted <td> <th> values do not match computed shape'⎕SIGNAL 5
+     shape⍴val
  }
